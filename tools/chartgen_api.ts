@@ -248,7 +248,7 @@ async function uploadFiles(
       method: "POST",
       headers: {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "access-token": apiKey,
+        "Authorization": apiKey,
         "Content-Length": String(body.length),
       },
       body,
@@ -338,7 +338,7 @@ async function submit(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "access-token": apiKey,
+        "Authorization": apiKey,
       },
       body,
     });
@@ -360,7 +360,7 @@ async function poll(apiKey: string, taskId: string): Promise<PollResult> {
     const res = await request({
       url: `${BASE_URL}/api/agent/task/${taskId}`,
       method: "GET",
-      headers: { "access-token": apiKey },
+      headers: { "Authorization": apiKey },
       timeoutMs: 15_000,
     });
 
