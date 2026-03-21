@@ -20,7 +20,7 @@ import * as path from "path";
 import { URL } from "url";
 
 const BASE_URL =
-  process.env.CHARTGEN_API_URL ?? "https://test-deepanalysis.digitforce.com";
+  process.env.CHARTGEN_API_URL ?? "https://chartgen.ai";
 const POLL_INTERVAL_MS = 20_000;
 const MAX_POLLS = 30;
 
