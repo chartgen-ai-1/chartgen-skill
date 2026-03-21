@@ -312,6 +312,7 @@ async function submit(
   apiKey: string,
   query: string,
   filePaths?: string[],
+  channel?: string,
 ): Promise<SubmitResult> {
   let fileIds: number[] = [];
 
@@ -330,6 +331,7 @@ async function submit(
 
   const payload: Record<string, unknown> = { query };
   if (fileIds.length > 0) payload.file_ids = fileIds;
+  if (channel) payload.channel = channel;
   const body = JSON.stringify(payload);
 
   try {
@@ -414,7 +416,16 @@ function cleanResult(result: PollResult): PollResult {
     delete art.raw_data;
   }
 
-  delete result.session_id;
+  if (result.session_id) {
+    const sid = result.session_id as string;
+    if (result.artifacts.length === 1 && result.artifacts[0].artifact_id) {
+      (result as any).edit_url =
+        `${BASE_URL}/chat/${sid}?artifactId=${result.artifacts[0].artifact_id}`;
+    } else {
+      (result as any).edit_url = `${BASE_URL}/chat/${sid}`;
+    }
+  }
+
   delete result.round_id;
   delete result.user_query;
   delete result.round_data_raw;
@@ -464,8 +475,9 @@ async function run(
   apiKey: string,
   query: string,
   filePaths?: string[],
+  channel?: string,
 ): Promise<PollResult> {
-  const submitRes = await submit(apiKey, query, filePaths);
+  const submitRes = await submit(apiKey, query, filePaths, channel);
   if (submitRes.error) return { error: submitRes.error, status: "error" };
 
   const taskId = submitRes.task_id;
@@ -502,10 +514,10 @@ async function main(): Promise<void> {
 
   switch (cmd) {
     case "submit": {
-      const [query, ...filePaths] = args;
+      const [query, channel, ...filePaths] = args;
       if (!query) {
         process.stderr.write(
-          'Usage: chartgen_api.ts submit "<query>" [file1 file2 ...]\n',
+          'Usage: chartgen_api.ts submit "<query>" <channel> [file1 file2 ...]\n',
         );
         process.exit(1);
       }
@@ -513,6 +525,7 @@ async function main(): Promise<void> {
         apiKey!,
         query,
         filePaths.length > 0 ? filePaths : undefined,
+        channel,
       );
       break;
     }
@@ -535,10 +548,10 @@ async function main(): Promise<void> {
       break;
     }
     case "run": {
-      const [query, ...filePaths] = args;
+      const [query, channel, ...filePaths] = args;
       if (!query) {
         process.stderr.write(
-          'Usage: chartgen_api.ts run "<query>" [file1 file2 ...]\n',
+          'Usage: chartgen_api.ts run "<query>" <channel> [file1 file2 ...]\n',
         );
         process.exit(1);
       }
@@ -546,6 +559,7 @@ async function main(): Promise<void> {
         apiKey!,
         query,
         filePaths.length > 0 ? filePaths : undefined,
+        channel,
       );
       break;
     }
@@ -553,10 +567,10 @@ async function main(): Promise<void> {
       process.stderr.write(
         `ChartGen AI API Tool  (${BASE_URL})\n\n` +
           "Commands:\n" +
-          '  submit  "<query>" [file1 file2 ...]   Submit task\n' +
-          "  poll    <task_id>                      Single status check\n" +
-          "  wait    <task_id>                      Poll until done\n" +
-          '  run     "<query>" [file1 file2 ...]   submit + wait\n\n' +
+          '  submit  "<query>" <channel> [file1 file2 ...]   Submit task\n' +
+          "  poll    <task_id>                                Single status check\n" +
+          "  wait    <task_id>                                Poll until done\n" +
+          '  run     "<query>" <channel> [file1 file2 ...]   submit + wait\n\n' +
           "Supported file types: " +
           [...ALLOWED_EXTENSIONS].join(", ") +
           "\n\n" +
