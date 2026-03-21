@@ -131,9 +131,31 @@ When the user attaches data files, **do not immediately submit**. Instead:
 
 ---
 
-## STEP 2 — Submit the Request
+## STEP 2 — Notify the User FIRST, Then Submit the Request
 
-After the user confirms, call the tool:
+**CRITICAL**: You MUST send the status message to the user BEFORE calling the
+tool. The tool call may take a long time — the user needs to know immediately
+that their request is being processed. Do NOT batch the message and tool call
+together; send the message first, then call the tool in a separate step.
+
+### 2a. Send the status message immediately (in their language):
+
+Choose the message based on whether files are involved:
+
+**With data files:**
+
+> 🎨 **ChartGen is analyzing your data!**
+>
+> This typically takes 1–3 minutes. I'll send you the results as soon as
+> they're ready — sit tight!
+
+**Without data files (text-only request):**
+
+> 🎨 **Got it! ChartGen is working on your request.**
+>
+> This typically takes 1–2 minutes. I'll get back to you as soon as it's done!
+
+### 2b. Then call the tool:
 
 ```bash
 # Text-only request
@@ -206,28 +228,9 @@ If the output contains `"error"`, check the message and respond accordingly:
 
 ---
 
-## STEP 3 — Tell the User, Then Start Background Polling
+## STEP 3 — Start Background Polling
 
-### 3a. Immediately tell the user (in their language):
-
-Choose the message based on whether files were uploaded:
-
-**With data files:**
-
-> 🎨 **ChartGen is analyzing your data!**
->
-> This typically takes 1–3 minutes. I'll send you the results as soon as
-> they're ready — sit tight!
-
-**Without data files (text-only request):**
-
-> 🎨 **Got it! ChartGen is working on your request.**
->
-> This typically takes 1–3 minutes. I'll get back to you as soon as it's done!
-
-Be explicit that ChartGen is working in the background and will reply when done.
-
-### 3b. Start the `wait` command via background exec
+### Start the `wait` command via background exec
 
 Use the OpenClaw `exec` tool to run the `wait` command **in the background**.
 
