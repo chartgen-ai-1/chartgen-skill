@@ -19,12 +19,27 @@ import * as os from "os";
 import * as path from "path";
 import { URL } from "url";
 
+const TOOL_VERSION = (() => {
+  const versionFile = path.resolve(__dirname, "..", "VERSION");
+  try {
+    return fs.readFileSync(versionFile, "utf-8").trim();
+  } catch {
+    return "0.0.0";
+  }
+})();
+
 const BASE_URL =
   process.env.CHARTGEN_API_URL ?? "https://chartgen.ai";
 const POLL_INTERVAL_MS = 20_000;
 const MAX_POLLS = 30;
 
 const ALLOWED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx", ".tsv"]);
+
+// Channels that support HTML inline rendering (case-insensitive match).
+// Add channel names here when they are verified to support HTML embedding.
+const HTML_CHANNELS: Set<string> = new Set([
+  // e.g. "signal", "email"
+]);
 
 // ---------------------------------------------------------------------------
 // API key resolution — tool reads it, skill never touches it
@@ -284,6 +299,9 @@ interface SubmitResult {
   status?: string;
   poll_url?: string;
   error?: string;
+  message?: string;
+  min_version?: string;
+  current_version?: string;
 }
 
 interface PollResult {
@@ -301,6 +319,7 @@ interface PollResult {
   }>;
   progress?: string;
   error?: string;
+  html_content?: string;
   // Fields from gateway that we strip before output
   session_id?: unknown;
   round_id?: unknown;
@@ -329,9 +348,17 @@ async function submit(
     fileIds = uploadRes.fileIds ?? [];
   }
 
-  const payload: Record<string, unknown> = { query };
+  const payload: Record<string, unknown> = {
+    query,
+    tool_version: TOOL_VERSION,
+  };
   if (fileIds.length > 0) payload.file_ids = fileIds;
-  if (channel) payload.channel = channel;
+  if (channel) {
+    payload.channel = channel;
+    if (HTML_CHANNELS.has(channel.toLowerCase())) {
+      payload.request_html = true;
+    }
+  }
   const body = JSON.stringify(payload);
 
   try {
@@ -344,6 +371,17 @@ async function submit(
       },
       body,
     });
+
+    if (res.status === 426) {
+      const info = JSON.parse(res.body);
+      return {
+        error: "upgrade_required",
+        message: info.message ?? "Tool version is outdated.",
+        min_version: info.min_version,
+        current_version: TOOL_VERSION,
+        status: "error",
+      };
+    }
 
     if (res.status >= 400) {
       return { error: `HTTP ${res.status}`, status: "error" };
@@ -414,6 +452,21 @@ function cleanResult(result: PollResult): PollResult {
     }
     delete art.image_base64;
     delete art.raw_data;
+  }
+
+  // Replace artifact image placeholders in html_content with local media paths
+  if (result.html_content) {
+    let html = result.html_content;
+    for (const art of result.artifacts) {
+      if (art.artifact_id && art.image_path) {
+        const normalizedPath = art.image_path.replace(/\\/g, "/");
+        html = html.replace(
+          `src="artifact:${art.artifact_id}"`,
+          `src="file://${normalizedPath}"`,
+        );
+      }
+    }
+    result.html_content = html;
   }
 
   if (result.session_id) {
@@ -565,7 +618,7 @@ async function main(): Promise<void> {
     }
     default:
       process.stderr.write(
-        `ChartGen AI API Tool  (${BASE_URL})\n\n` +
+        `ChartGen AI API Tool v${TOOL_VERSION}  (${BASE_URL})\n\n` +
           "Commands:\n" +
           '  submit  "<query>" <channel> [file1 file2 ...]   Submit task\n' +
           "  poll    <task_id>                                Single status check\n" +
