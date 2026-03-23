@@ -1,53 +1,42 @@
 # Skill Upgrade Procedure
 
-When the tool returns `"error": "upgrade_required"`, the server has rejected the request because the tool version is outdated. The response includes `current_version` (what we have now) and `min_version` (what the server needs).
-
-You should upgrade the skill automatically.
+When the tool returns `"error": "upgrade_required"`, the tool version is outdated.
+The response includes `current_version` and `min_version`.
 
 ## Steps
 
-1. **Save the old version.** Read the current version from the tool output's
-   `current_version` field (e.g. `"1.0.0"`).
+1. **Locate the skill root** — the directory containing `SKILL.md`. Determine
+   its absolute path from your runtime context (do NOT assume a fixed location).
 
-2. **Inform the user briefly:**
+2. **Check if it's a git repo** — run `git -C <SKILL_ROOT> rev-parse --is-inside-work-tree`.
 
-   > ⬆️ Updating ChartGen skill to the latest version...
+---
 
-3. **Locate the skill directory.** The skill root is the directory containing
-   this `SKILL.md` file (i.e. the parent of `references/`). Determine its absolute path from your runtime context — do NOT assume a fixed location.
+### Path A — Git repo (auto-upgrade)
 
-4. **Run the upgrade.** `cd` into the skill root, then pull the latest code.
-   The upgrade must overwrite all files (SKILL.md, tools/, references/, VERSION).
+If the skill directory is a git repository:
 
-   **Method A — git pull (preferred):**
-
+1. Inform the user: `⬆️ Updating ChartGen skill...`
+2. Run:
    ```bash
-   cd <SKILL_ROOT> && \
-   git fetch origin main && \
-   git reset --hard origin/main && \
-   touch SKILL.md references/*.md
+   cd <SKILL_ROOT> && git fetch origin main && git reset --hard origin/main && touch SKILL.md references/*.md
    ```
+3. Read new version: `npx tsx tools/chartgen_api.ts version`
+4. Inform the user:
+   > ✅ ChartGen skill upgraded from **{old}** to **{new}**. Retrying now...
+5. If upgrade fails, inform user and **stop** — do not retry.
+6. On success, go back to STEP 2 and resubmit automatically (no re-confirmation needed).
 
-   The `touch` at the end updates file timestamps so the agent's skill refresh mechanism detects the change.
+---
 
-   **Method B — agent built-in (if git unavailable):**
+### Path B — Not a git repo (manual upgrade)
 
-   Use whatever skill install command your agent platform provides, e.g.:
+If the skill directory is NOT a git repository, tell the user to update manually
+(adapt to their language):
 
-   ```
-   openclaw skill install https://github.com/chartgen-ai/chartgen-skill
-   ```
+> ⚠️ ChartGen skill version **{current_version}** is outdated 
+> Please update the skill:
+> - ClawHub: search "chartgen" and reinstall
+> - Or: `openclaw skill install https://github.com/chartgen-ai/chartgen-skill`
 
-5. **Read the new version.** After upgrade, read the `VERSION` file in the skill root directory to get the new version number.
-
-6. **Inform the user of the result:**
-
-   On success:
-   > ✅ ChartGen skill upgraded from **{old_version}** to **{new_version}**.
-   > Retrying your request now...
-
-   On failure:
-   > ⚠️ Auto-upgrade failed. Please update manually:
-
-7. **Retry the original request.** After a successful upgrade, go back to
-   STEP 2 and resubmit the user's request automatically — do NOT ask the user to confirm again.
+**Stop here** — do not retry or continue the task.

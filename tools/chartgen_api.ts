@@ -17,24 +17,9 @@ import * as http from "http";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { URL, fileURLToPath } from "url";
+import { URL } from "url";
 
-const __toolDir = (() => {
-  try {
-    return path.dirname(fileURLToPath(import.meta.url));
-  } catch {
-    return __dirname;
-  }
-})();
-
-const TOOL_VERSION = (() => {
-  const versionFile = path.resolve(__toolDir, "..", "VERSION");
-  try {
-    return fs.readFileSync(versionFile, "utf-8").trim();
-  } catch {
-    return "0.0.0";
-  }
-})();
+const TOOL_VERSION = "1.0.3";
 
 const BASE_URL =
   process.env.CHARTGEN_API_URL ?? "https://chartgen.ai";
@@ -740,6 +725,10 @@ async function main(): Promise<void> {
       );
       break;
     }
+    case "version": {
+      process.stdout.write(TOOL_VERSION + "\n");
+      process.exit(0);
+    }
     default:
       process.stderr.write(
         `ChartGen AI API Tool v${TOOL_VERSION}  (${BASE_URL})\n\n` +
@@ -747,7 +736,8 @@ async function main(): Promise<void> {
           '  submit  "<query>" <channel> [file1 file2 ...]   Submit task\n' +
           "  poll    <task_id>                                Single status check\n" +
           "  wait    <task_id>                                Poll until done (~25 min max)\n" +
-          '  run     "<query>" <channel> [file1 file2 ...]   submit + wait\n\n' +
+          '  run     "<query>" <channel> [file1 file2 ...]   submit + wait\n' +
+          "  version                                          Print tool version\n\n" +
           "Supported file types: " +
           [...ALLOWED_EXTENSIONS].join(", ") +
           "\n\n" +
