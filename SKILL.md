@@ -10,7 +10,7 @@ metadata:
       env:
         - CHARTGEN_API_KEY
       runtime:
-        - node >= 18
+        - node >= 14
 ---
 
 # ChartGen AI — Data Analysis & Visualization Skill
@@ -27,7 +27,7 @@ Dashboards (multi-chart layouts).
 
 ---
 
-## Tool — `tools/chartgen_api.ts`
+## Tool — `tools/chartgen_api.js`
 
 | Command | Args | Purpose |
 |---------|------|---------|
@@ -84,7 +84,7 @@ File upload example (adapt to language):
 
 **Then call the tool:**
 ```
-npx tsx tools/chartgen_api.ts submit "<query>" <channel> [files...]
+node tools/chartgen_api.js submit "<query>" <channel> [files...]
 ```
 `<channel>`: current channel name, e.g. `Signal`, `WhatsApp`, `Web`.
 `[files...]`: optional, space-separated absolute paths to data files.
@@ -105,7 +105,7 @@ Choose based on platform capabilities:
 
 **A. Background exec** (OpenClaw, or agent supports background execution with exit notification):
 ```json
-{ "tool": "exec", "params": { "command": "npx tsx tools/chartgen_api.ts wait {task_id}", "background": true } }
+{ "tool": "exec", "params": { "command": "node tools/chartgen_api.js wait {task_id}", "background": true } }
 ```
 When done, read output → STEP 4.
 

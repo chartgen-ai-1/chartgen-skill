@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * ChartGen AI API helper — portable tool for OpenClaw skill.
  *
@@ -6,50 +7,42 @@
  * needs to know or pass secrets.
  *
  * Usage (skill only passes business data):
- *   npx tsx tools/chartgen_api.ts submit "<query>" [file1 file2 ...]
- *   npx tsx tools/chartgen_api.ts poll   <task_id>
- *   npx tsx tools/chartgen_api.ts wait   <task_id>
- *   npx tsx tools/chartgen_api.ts run    "<query>" [file1 file2 ...]
+ *   node tools/chartgen_api.js submit "<query>" <channel> [file1 file2 ...]
+ *   node tools/chartgen_api.js poll   <task_id>
+ *   node tools/chartgen_api.js wait   <task_id>
+ *   node tools/chartgen_api.js run    "<query>" <channel> [file1 file2 ...]
  */
 
-import * as https from "https";
-import * as http from "http";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { URL } from "url";
+const https = require("https");
+const http = require("http");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { URL } = require("url");
 
-const TOOL_VERSION = "1.0.3";
+const TOOL_VERSION = "1.0.5";
 
-const BASE_URL =
-  process.env.CHARTGEN_API_URL ?? "https://chartgen.ai";
+const BASE_URL = process.env.CHARTGEN_API_URL || "https://chartgen.ai";
 const POLL_INTERVAL_MS = 20_000;
 const MAX_POLLS = 75;
 
 const ALLOWED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx", ".tsv"]);
 
-// Channels that support HTML inline rendering (case-insensitive match).
-// Add channel names here when they are verified to support HTML embedding.
-const HTML_CHANNELS: Set<string> = new Set([
-  // e.g. "signal", "email"
+const HTML_CHANNELS = new Set([
+  // Channels that support HTML inline rendering (case-insensitive match).
 ]);
 
 // ---------------------------------------------------------------------------
 // API key resolution — tool reads it, skill never touches it
 // ---------------------------------------------------------------------------
 
-function resolveApiKey(): string | null {
+function resolveApiKey() {
   if (process.env.CHARTGEN_API_KEY) return process.env.CHARTGEN_API_KEY;
 
   const home = os.homedir();
   const candidates = [
     process.env.OPENCLAW_STATE_DIR
-      ? path.join(
-          process.env.OPENCLAW_STATE_DIR,
-          "skills",
-          "chartgen",
-          "config.json",
-        )
+      ? path.join(process.env.OPENCLAW_STATE_DIR, "skills", "chartgen", "config.json")
       : "",
     path.join(home, ".openclaw", "skills", "chartgen", "config.json"),
     path.join(home, ".config", "chartgen", "api_key"),
@@ -61,8 +54,7 @@ function resolveApiKey(): string | null {
       const raw = fs.readFileSync(file, "utf-8").trim();
       if (file.endsWith(".json")) {
         const obj = JSON.parse(raw);
-        const key =
-          obj.api_key ?? obj.apiKey ?? obj.token ?? obj.access_token;
+        const key = obj.api_key || obj.apiKey || obj.token || obj.access_token;
         if (key) return String(key);
       } else {
         if (raw.length > 0) return raw;
@@ -78,7 +70,7 @@ function resolveApiKey(): string | null {
 // OpenClaw media directory resolution
 // ---------------------------------------------------------------------------
 
-function getMediaDir(): string {
+function getMediaDir() {
   const stateDir = process.env.OPENCLAW_STATE_DIR;
   if (stateDir) {
     const media = path.join(stateDir, "media");
@@ -99,7 +91,7 @@ function getMediaDir(): string {
   return os.tmpdir();
 }
 
-function ensureDir(dir: string): boolean {
+function ensureDir(dir) {
   try {
     fs.mkdirSync(dir, { recursive: true });
     return true;
@@ -112,14 +104,8 @@ function ensureDir(dir: string): boolean {
 // File validation
 // ---------------------------------------------------------------------------
 
-interface FileValidation {
-  valid: boolean;
-  error?: string;
-  files?: Array<{ filePath: string; fileName: string; content: Buffer }>;
-}
-
-function validateFiles(filePaths: string[]): FileValidation {
-  const files: FileValidation["files"] = [];
+function validateFiles(filePaths) {
+  const files = [];
 
   for (const fp of filePaths) {
     const resolved = path.resolve(fp);
@@ -137,28 +123,18 @@ function validateFiles(filePaths: string[]): FileValidation {
     try {
       fs.accessSync(resolved, fs.constants.R_OK);
     } catch {
-      return {
-        valid: false,
-        error: `File not accessible: "${resolved}"`,
-      };
+      return { valid: false, error: `File not accessible: "${resolved}"` };
     }
 
     const stat = fs.statSync(resolved);
     if (!stat.isFile()) {
-      return {
-        valid: false,
-        error: `Not a file: "${resolved}"`,
-      };
+      return { valid: false, error: `Not a file: "${resolved}"` };
     }
-
     if (stat.size === 0) {
-      return {
-        valid: false,
-        error: `File is empty: "${resolved}"`,
-      };
+      return { valid: false, error: `File is empty: "${resolved}"` };
     }
 
-    files!.push({
+    files.push({
       filePath: resolved,
       fileName: path.basename(resolved),
       content: fs.readFileSync(resolved),
@@ -172,36 +148,26 @@ function validateFiles(filePaths: string[]): FileValidation {
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-interface RequestOptions {
-  url: string;
-  method?: "GET" | "POST";
-  headers?: Record<string, string>;
-  body?: string | Buffer;
-  timeoutMs?: number;
-}
-
-function request(
-  opts: RequestOptions,
-): Promise<{ status: number; body: string }> {
+function request(opts) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(opts.url);
     const lib = parsed.protocol === "https:" ? https : http;
 
-    const reqOpts: https.RequestOptions = {
+    const reqOpts = {
       hostname: parsed.hostname,
       port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
       path: parsed.pathname + parsed.search,
-      method: opts.method ?? "GET",
-      headers: opts.headers ?? {},
-      timeout: opts.timeoutMs ?? 30_000,
+      method: opts.method || "GET",
+      headers: opts.headers || {},
+      timeout: opts.timeoutMs || 30_000,
     };
 
     const req = lib.request(reqOpts, (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => {
         resolve({
-          status: res.statusCode ?? 0,
+          status: res.statusCode || 0,
           body: Buffer.concat(chunks).toString("utf-8"),
         });
       });
@@ -222,21 +188,13 @@ function request(
 // Multipart upload
 // ---------------------------------------------------------------------------
 
-interface UploadResult {
-  fileIds?: number[];
-  error?: string;
-}
-
-async function uploadFiles(
-  apiKey: string,
-  fileInfos: Array<{ fileName: string; content: Buffer }>,
-): Promise<UploadResult> {
+async function uploadFiles(apiKey, fileInfos) {
   const boundary =
     "----ChartGenBoundary" +
     Date.now().toString(36) +
     Math.random().toString(36).slice(2);
 
-  const parts: Buffer[] = [];
+  const parts = [];
   for (const f of fileInfos) {
     const header =
       `--${boundary}\r\n` +
@@ -256,7 +214,7 @@ async function uploadFiles(
       method: "POST",
       headers: {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "Authorization": apiKey,
+        Authorization: apiKey,
         "Content-Length": String(body.length),
       },
       body,
@@ -265,21 +223,19 @@ async function uploadFiles(
 
     if (res.status >= 400) {
       const detail =
-        res.body.length > 0 && res.body.length < 500
-          ? ` — ${res.body}`
-          : "";
+        res.body.length > 0 && res.body.length < 500 ? ` — ${res.body}` : "";
       return { error: `Upload failed: HTTP ${res.status}${detail}` };
     }
 
     const json = JSON.parse(res.body);
     if (json.code === "00000" && Array.isArray(json.data)) {
-      return { fileIds: json.data.map((f: { id: number }) => f.id) };
+      return { fileIds: json.data.map((f) => f.id) };
     }
     return {
       error: `Upload failed: ${json.desc || json.message || "unexpected response"}`,
     };
-  } catch (err: unknown) {
-    return { error: `Upload failed: ${(err as Error).message}` };
+  } catch (err) {
+    return { error: `Upload failed: ${err.message}` };
   }
 }
 
@@ -287,51 +243,8 @@ async function uploadFiles(
 // API methods
 // ---------------------------------------------------------------------------
 
-interface SubmitResult {
-  task_id?: string;
-  status?: string;
-  poll_url?: string;
-  error?: string;
-  message?: string;
-  min_version?: string;
-  current_version?: string;
-}
-
-interface PollResult {
-  task_id?: string;
-  status?: string;
-  text_reply?: string;
-  artifacts?: Array<{
-    artifact_id?: number;
-    type: string;
-    title: string;
-    image_base64?: string;
-    image_path?: string;
-    raw_data?: unknown;
-    download_url?: string;
-    download_path?: string;
-    pptx_base64?: string;
-    page_count?: number;
-    preview_images?: string[];
-    preview_paths?: string[];
-  }>;
-  progress?: string;
-  error?: string;
-  html_content?: string;
-  // Fields from gateway that we strip before output
-  session_id?: unknown;
-  round_id?: unknown;
-  user_query?: unknown;
-  round_data_raw?: unknown;
-}
-
-async function submit(
-  apiKey: string,
-  query: string,
-  filePaths?: string[],
-  channel?: string,
-): Promise<SubmitResult> {
-  let fileIds: number[] = [];
+async function submit(apiKey, query, filePaths, channel) {
+  let fileIds = [];
 
   if (filePaths && filePaths.length > 0) {
     const validation = validateFiles(filePaths);
@@ -339,17 +252,14 @@ async function submit(
       return { error: validation.error, status: "error" };
     }
 
-    const uploadRes = await uploadFiles(apiKey, validation.files!);
+    const uploadRes = await uploadFiles(apiKey, validation.files);
     if (uploadRes.error) {
       return { error: uploadRes.error, status: "error" };
     }
-    fileIds = uploadRes.fileIds ?? [];
+    fileIds = uploadRes.fileIds || [];
   }
 
-  const payload: Record<string, unknown> = {
-    query,
-    tool_version: TOOL_VERSION,
-  };
+  const payload = { query, tool_version: TOOL_VERSION };
   if (fileIds.length > 0) payload.file_ids = fileIds;
   if (channel) {
     payload.channel = channel;
@@ -365,7 +275,7 @@ async function submit(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": apiKey,
+        Authorization: apiKey,
       },
       body,
     });
@@ -374,7 +284,7 @@ async function submit(
       const info = JSON.parse(res.body);
       return {
         error: "upgrade_required",
-        message: info.message ?? "Tool version is outdated.",
+        message: info.message || "Tool version is outdated.",
         min_version: info.min_version,
         current_version: TOOL_VERSION,
         status: "error",
@@ -385,33 +295,27 @@ async function submit(
       return { error: `HTTP ${res.status}`, status: "error" };
     }
     return JSON.parse(res.body);
-  } catch (err: unknown) {
-    return {
-      error: `Connection failed: ${(err as Error).message}`,
-      status: "error",
-    };
+  } catch (err) {
+    return { error: `Connection failed: ${err.message}`, status: "error" };
   }
 }
 
-async function poll(apiKey: string, taskId: string): Promise<PollResult> {
+async function poll(apiKey, taskId) {
   try {
     const res = await request({
       url: `${BASE_URL}/api/agent/task/${taskId}`,
       method: "GET",
-      headers: { "Authorization": apiKey },
+      headers: { Authorization: apiKey },
       timeoutMs: 15_000,
     });
 
     if (res.status >= 400) {
       return { error: `HTTP ${res.status}`, status: "error" };
     }
-    const result: PollResult = JSON.parse(res.body);
+    const result = JSON.parse(res.body);
     return await cleanResult(result);
-  } catch (err: unknown) {
-    return {
-      error: `Poll failed: ${(err as Error).message}`,
-      status: "error",
-    };
+  } catch (err) {
+    return { error: `Poll failed: ${err.message}`, status: "error" };
   }
 }
 
@@ -419,14 +323,15 @@ async function poll(apiKey: string, taskId: string): Promise<PollResult> {
 // Image saving
 // ---------------------------------------------------------------------------
 
-function saveBase64(dataUri: string, tag?: string, ext = "png"): string | null {
+function saveBase64(dataUri, tag, ext) {
+  ext = ext || "png";
   try {
     const marker = "base64,";
     const idx = dataUri.indexOf(marker);
     const raw = idx !== -1 ? dataUri.slice(idx + marker.length) : dataUri;
     const buf = Buffer.from(raw, "base64");
     const mediaDir = getMediaDir();
-    const name = `chartgen_${tag ?? Date.now()}.${ext}`;
+    const name = `chartgen_${tag || Date.now()}.${ext}`;
     const dest = path.join(mediaDir, name);
     fs.writeFileSync(dest, buf);
     return dest;
@@ -435,16 +340,16 @@ function saveBase64(dataUri: string, tag?: string, ext = "png"): string | null {
   }
 }
 
-function downloadFile(url: string, tag: string, ext: string): Promise<string | null> {
+function downloadFile(url, tag, ext) {
   return new Promise((resolve) => {
     try {
       const mediaDir = getMediaDir();
       const dest = path.join(mediaDir, `chartgen_${tag}.${ext}`);
-      const mod = url.startsWith("https") ? require("https") : require("http");
+      const mod = url.startsWith("https") ? https : http;
       const file = fs.createWriteStream(dest);
-      mod.get(url, (res: any) => {
+      mod.get(url, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
-          downloadFile(res.headers.location!, tag, ext).then(resolve);
+          downloadFile(res.headers.location, tag, ext).then(resolve);
           return;
         }
         if (res.statusCode !== 200) { resolve(null); return; }
@@ -456,28 +361,23 @@ function downloadFile(url: string, tag: string, ext: string): Promise<string | n
   });
 }
 
-async function cleanResult(result: PollResult): Promise<PollResult> {
+async function cleanResult(result) {
   if (result.status !== "finished" || !result.artifacts) return result;
 
   for (const art of result.artifacts) {
     if (art.image_base64) {
-      const tag = art.artifact_id
-        ? String(art.artifact_id)
-        : String(Date.now());
+      const tag = art.artifact_id ? String(art.artifact_id) : String(Date.now());
       const saved = saveBase64(art.image_base64, tag);
-      if (saved) {
-        art.image_path = saved;
-      }
+      if (saved) art.image_path = saved;
     }
     delete art.image_base64;
     delete art.raw_data;
 
-    // PPT: save preview images and download pptx file
     if (art.type === "ppt") {
       if (art.preview_images && art.preview_images.length > 0) {
-        const paths: string[] = [];
+        const paths = [];
         for (let i = 0; i < art.preview_images.length; i++) {
-          const ptag = `${art.artifact_id ?? Date.now()}_slide${i + 1}`;
+          const ptag = `${art.artifact_id || Date.now()}_slide${i + 1}`;
           const p = saveBase64(art.preview_images[i], ptag);
           if (p) paths.push(p);
         }
@@ -486,11 +386,11 @@ async function cleanResult(result: PollResult): Promise<PollResult> {
       delete art.preview_images;
 
       if (art.pptx_base64) {
-        const dtag = String(art.artifact_id ?? Date.now());
+        const dtag = String(art.artifact_id || Date.now());
         const dp = saveBase64(art.pptx_base64, dtag, "pptx");
         if (dp) art.download_path = dp;
       } else if (art.download_url) {
-        const dtag = String(art.artifact_id ?? Date.now());
+        const dtag = String(art.artifact_id || Date.now());
         const dp = await downloadFile(art.download_url, dtag, "pptx");
         if (dp) art.download_path = dp;
       }
@@ -499,7 +399,6 @@ async function cleanResult(result: PollResult): Promise<PollResult> {
     }
   }
 
-  // Replace artifact image placeholders in html_content with local media paths
   if (result.html_content) {
     let html = result.html_content;
     for (const art of result.artifacts) {
@@ -515,12 +414,12 @@ async function cleanResult(result: PollResult): Promise<PollResult> {
   }
 
   if (result.session_id) {
-    const sid = result.session_id as string;
+    const sid = result.session_id;
     if (result.artifacts.length === 1 && result.artifacts[0].artifact_id) {
-      (result as any).edit_url =
+      result.edit_url =
         `${BASE_URL}/chat/${sid}?artifactId=${result.artifacts[0].artifact_id}`;
     } else {
-      (result as any).edit_url = `${BASE_URL}/chat/${sid}`;
+      result.edit_url = `${BASE_URL}/chat/${sid}`;
     }
   }
 
@@ -536,46 +435,35 @@ async function cleanResult(result: PollResult): Promise<PollResult> {
 // Polling helpers
 // ---------------------------------------------------------------------------
 
-function sleep(ms: number): Promise<void> {
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForTask(
-  apiKey: string,
-  taskId: string,
-  intervalMs = POLL_INTERVAL_MS,
-  maxPolls = MAX_POLLS,
-): Promise<PollResult> {
+async function waitForTask(apiKey, taskId, intervalMs, maxPolls) {
+  intervalMs = intervalMs || POLL_INTERVAL_MS;
+  maxPolls = maxPolls || MAX_POLLS;
+
   for (let attempt = 1; attempt <= maxPolls; attempt++) {
     await sleep(intervalMs);
     const result = await poll(apiKey, taskId);
-    const st = result.status ?? "";
+    const st = result.status || "";
 
     if (st === "finished" || st === "error" || st === "not_found") {
       return result;
     }
 
     if (attempt % 3 === 0) {
-      const progress = result.progress ?? "processing";
+      const progress = result.progress || "processing";
       process.stderr.write(
         JSON.stringify({ poll: attempt, status: st, progress }) + "\n",
       );
     }
   }
 
-  return {
-    error: "Polling timed out",
-    task_id: taskId,
-    status: "timeout",
-  } as PollResult;
+  return { error: "Polling timed out", task_id: taskId, status: "timeout" };
 }
 
-async function run(
-  apiKey: string,
-  query: string,
-  filePaths?: string[],
-  channel?: string,
-): Promise<PollResult> {
+async function run(apiKey, query, filePaths, channel) {
   const submitRes = await submit(apiKey, query, filePaths, channel);
   if (submitRes.error) return { error: submitRes.error, status: "error" };
 
@@ -587,18 +475,14 @@ async function run(
 }
 
 // ---------------------------------------------------------------------------
-// CLI entry point
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // User-facing error messages — skill just relays `user_message` to the user.
 // ---------------------------------------------------------------------------
 
-function getUserMessage(error: string): string {
+function getUserMessage(error) {
   const lower = error.toLowerCase();
 
   if (lower.startsWith("api_key_not_configured"))
-    return ""; // handled by skill with detailed instructions
+    return "";
 
   if (lower.includes("http 401") || lower.includes("http 403"))
     return (
@@ -607,24 +491,16 @@ function getUserMessage(error: string): string {
     );
 
   if (lower.includes("http 429"))
-    return (
-      "⏳ Rate limit reached. Please wait a moment and try again."
-    );
+    return "⏳ Rate limit reached. Please wait a moment and try again.";
 
   if (lower.includes("http 5"))
-    return (
-      "⚠️ ChartGen service is temporarily unavailable. Please try again in a few minutes."
-    );
+    return "⚠️ ChartGen service is temporarily unavailable. Please try again in a few minutes.";
 
   if (lower.includes("connection failed") || lower.includes("request timed out"))
-    return (
-      "⚠️ Could not connect to ChartGen. Please check your network and try again."
-    );
+    return "⚠️ Could not connect to ChartGen. Please check your network and try again.";
 
   if (lower.includes("unsupported file type"))
-    return (
-      "⚠️ " + error + "\nPlease re-send with supported file types: CSV, XLS, XLSX, TSV."
-    );
+    return "⚠️ " + error + "\nPlease re-send with supported file types: CSV, XLS, XLSX, TSV.";
 
   if (lower.includes("file not accessible") || lower.includes("not a file") || lower.includes("file is empty"))
     return "⚠️ " + error + "\nPlease verify the file path and try again.";
@@ -633,36 +509,37 @@ function getUserMessage(error: string): string {
     return "⚠️ File upload failed. Please try again.";
 
   if (lower === "upgrade_required")
-    return ""; // handled by skill via references/upgrade-skill.md
+    return "";
 
   return "⚠️ " + error;
 }
 
-function enrichError(result: Record<string, unknown>): Record<string, unknown> {
+function enrichError(result) {
   if (result.error && typeof result.error === "string") {
-    const err = result.error as string;
-    const lower = err.toLowerCase();
+    const lower = result.error.toLowerCase();
     if (lower === "upgrade_required" || lower.startsWith("api_key_not_configured")) {
       return result;
     }
-    const msg = getUserMessage(err);
+    const msg = getUserMessage(result.error);
     if (msg) result.user_message = msg;
   }
   return result;
 }
 
-function fail(msg: string): never {
-  process.stdout.write(
-    JSON.stringify(enrichError({ error: msg })) + "\n",
-  );
+// ---------------------------------------------------------------------------
+// CLI entry point
+// ---------------------------------------------------------------------------
+
+function fail(msg) {
+  process.stdout.write(JSON.stringify(enrichError({ error: msg })) + "\n");
   process.exit(1);
 }
 
-async function main(): Promise<void> {
+async function main() {
   const [, , cmd, ...args] = process.argv;
 
   const apiKey = resolveApiKey();
-  if (!apiKey && cmd && cmd !== "help") {
+  if (!apiKey && cmd && cmd !== "help" && cmd !== "version") {
     fail(
       "api_key_not_configured. " +
         "Please set your ChartGen API key: " +
@@ -672,19 +549,19 @@ async function main(): Promise<void> {
     );
   }
 
-  let result: unknown;
+  let result;
 
   switch (cmd) {
     case "submit": {
       const [query, channel, ...filePaths] = args;
       if (!query) {
         process.stderr.write(
-          'Usage: chartgen_api.ts submit "<query>" <channel> [file1 file2 ...]\n',
+          'Usage: chartgen_api.js submit "<query>" <channel> [file1 file2 ...]\n',
         );
         process.exit(1);
       }
       result = await submit(
-        apiKey!,
+        apiKey,
         query,
         filePaths.length > 0 ? filePaths : undefined,
         channel,
@@ -694,31 +571,31 @@ async function main(): Promise<void> {
     case "poll": {
       const taskId = args[0];
       if (!taskId) {
-        process.stderr.write("Usage: chartgen_api.ts poll <task_id>\n");
+        process.stderr.write("Usage: chartgen_api.js poll <task_id>\n");
         process.exit(1);
       }
-      result = await poll(apiKey!, taskId);
+      result = await poll(apiKey, taskId);
       break;
     }
     case "wait": {
       const taskId = args[0];
       if (!taskId) {
-        process.stderr.write("Usage: chartgen_api.ts wait <task_id>\n");
+        process.stderr.write("Usage: chartgen_api.js wait <task_id>\n");
         process.exit(1);
       }
-      result = await waitForTask(apiKey!, taskId);
+      result = await waitForTask(apiKey, taskId);
       break;
     }
     case "run": {
       const [query, channel, ...filePaths] = args;
       if (!query) {
         process.stderr.write(
-          'Usage: chartgen_api.ts run "<query>" <channel> [file1 file2 ...]\n',
+          'Usage: chartgen_api.js run "<query>" <channel> [file1 file2 ...]\n',
         );
         process.exit(1);
       }
       result = await run(
-        apiKey!,
+        apiKey,
         query,
         filePaths.length > 0 ? filePaths : undefined,
         channel,
@@ -750,8 +627,8 @@ async function main(): Promise<void> {
       process.exit(1);
   }
 
-  if (result && typeof result === "object" && (result as any).error) {
-    enrichError(result as Record<string, unknown>);
+  if (result && typeof result === "object" && result.error) {
+    enrichError(result);
   }
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
