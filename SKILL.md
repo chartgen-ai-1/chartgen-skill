@@ -3,10 +3,14 @@ name: chartgen
 description: >
   Use this skill when the user wants to create visualizations (charts, dashboards, diagrams, Gantt, PPT), analyze data (Excel/CSV upload, cross-file analysis, trends, outliers) or generate reports. Also use when the user mentions ChartGen or uploads spreadsheet files.
 user-invocable: true
-env:
-  CHARTGEN_API_KEY:
-    required: true
-    description: "API key for ChartGen. Get one at https://chartgen.ai/chat → Menu → API."
+homepage: https://github.com/chartgen-ai/chartgen-skill
+metadata:
+  openclaw:
+    requires:
+      env:
+        - CHARTGEN_API_KEY
+      runtime:
+        - node >= 18
 ---
 
 # ChartGen AI — Data Analysis & Visualization Skill
