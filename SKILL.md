@@ -39,6 +39,7 @@ Dashboards (multi-chart layouts).
 - Supported files: `.csv`, `.xls`, `.xlsx`, `.tsv`.
 - Output: JSON with `text_reply`, `edit_url`, `artifacts[]` (`artifact_id`, `image_path`, `title`).
 - PPT artifacts also have: `page_count`, `preview_paths[]`, `download_path`.
+- Excel/file artifacts also have: `download_path`, `file_name`, `summary`.
 - On error: JSON with `"error"` and `"user_message"` (for non-special errors).
 
 ---
@@ -86,6 +87,7 @@ File upload example (adapt to language):
 ```
 node tools/chartgen_api.js submit "<query>" <channel> [files...]
 ```
+`<query>`: **Use the user's original text as-is.** Do NOT rewrite, expand, embellish, or reinterpret. ChartGen has its own AI — just pass the raw user intent. If the user confirmed a suggested task from STEP 1, use exactly that confirmed text.
 `<channel>`: current channel name, e.g. `Signal`, `WhatsApp`, `Web`.
 `[files...]`: optional, space-separated absolute paths to data files.
 
@@ -135,6 +137,7 @@ Read the output JSON `status`:
 2. **Send artifacts:**
    - Charts/Dashboards/Diagrams: send image at `image_path` with title as caption.
    - PPT: tell user page count, send each `preview_paths` image, send `.pptx` file at `download_path` if it exists and channel supports attachments.
+   - Excel/file: show `summary` (columns, rows), send file at `download_path` if it exists and channel supports attachments.
 
 3. **Show `edit_url`** — link to edit on ChartGen.
 
@@ -148,6 +151,7 @@ Read the output JSON `status`:
 
 - Always respond in the user's language.
 - Always confirm before submitting — never call the tool without explicit confirmation.
+- **Pass the user's original query verbatim** to the tool — never rewrite, expand, or paraphrase. ChartGen handles interpretation itself.
 - Recommend analysis options when user uploads files.
 - Never expose API key. Never fabricate visualizations.
 - Prefer background/cron polling over blocking. Clean up crons after completion.

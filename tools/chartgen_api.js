@@ -397,6 +397,16 @@ async function cleanResult(result) {
       delete art.pptx_base64;
       delete art.download_url;
     }
+
+    // Excel / file artifacts
+    if (art.file_base64) {
+      const fname = art.file_name || `artifact_${art.artifact_id || Date.now()}`;
+      const ext = path.extname(fname).replace(".", "") || "xlsx";
+      const dtag = String(art.artifact_id || Date.now());
+      const dp = saveBase64(art.file_base64, dtag, ext);
+      if (dp) art.download_path = dp;
+      delete art.file_base64;
+    }
   }
 
   if (result.html_content) {
