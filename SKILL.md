@@ -47,7 +47,7 @@ Dashboards (multi-chart layouts).
 
 ### STEP 1 — Confirm Before Submitting
 
-Always respond in the user's language. **Must** include numbered options, each on its own line:
+Always respond in the user's language. **Must** mention using **ChartGen** to complete the task, and include numbered options, each on its own line:
 > **1** ✅ Go ahead
 > **2** ✏️ Modify
 > **0** ❌ Cancel
@@ -62,14 +62,14 @@ The `<query>` is **always the user's original message, copied word-for-word**. D
 
 **File upload:** Do NOT submit immediately. Recommend 3–5 analysis tasks (numbered, noting which files). Each option's text is the exact query that will be submitted. User picks a number, types custom text, or cancels.
 
-Text request example (**adapt to language**):
+Text request example (**reply in user's language, mention ChartGen**):
 > Sure! Here's what I'll ask **ChartGen** to do for you:
 > 📊 **"Generate a monthly sales trend line chart for 2025"**
 > **1** ✅ Go ahead
 > **2** ✏️ Modify
 > **0** ❌ Cancel
 
-File upload example (**adapt to language**):
+File upload example (**reply in user's language, mention ChartGen**):
 > Got your files! Here are a few things **ChartGen** can do — pick one or tell me what you'd like:
 > **1.** 📊 "Monthly order trend chart" — *orders.xlsx*
 > **2.** 🥧 "Category breakdown pie chart" — *orders.xlsx, products.xlsx*
@@ -137,7 +137,7 @@ Read the output JSON `status`:
 
 ### STEP 5 — Deliver Results
 
-1. **Show `text_reply` in full** to user — this is ChartGen's original output, show it as-is. Brief transitions OK; never cut or reword.
+1. **Summarize `text_reply`** — extract key points from ChartGen's analysis and present them concisely to the user. Keep it clear and informative.
 
 2. **Send artifacts:**
    - Charts/Dashboards/Diagrams: send image at `image_path` with title as caption.
@@ -160,4 +160,5 @@ Read the output JSON `status`:
 - Prefer background/cron polling over blocking. Clean up crons after completion.
 - Always use `image_path` from results, never show raw base64.
 - Each request is independent — don't suggest modifying previous charts.
+- **NEVER skip STEP 5 items**: always summarize `text_reply`, send artifact images/files, show `edit_url`, and suggest next steps — even when artifacts are present.
 
