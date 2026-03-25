@@ -47,27 +47,34 @@ Dashboards (multi-chart layouts).
 
 ### STEP 1 — Confirm Before Submitting
 
-Always respond in the user's language. **Must** include numbered options (1=go, 2=modify, 0=cancel).
+Always respond in the user's language. **Must** include numbered options, each on its own line:
+> **1** — Go ahead
+> **2** — Modify
+> **0** — Cancel
 
 **Confirmation rules:**
 1. **Cancel = abandon forever.** Never proceed with a cancelled task.
 2. **Replies bind to the most recent prompt only.** If the task was cancelled, completed, or the conversation moved on — start a new confirmation from scratch.
 3. **When in doubt, ask** — never guess.
 
-**Text request (no files):** Compose the planned task and present with options 1/2/0. If user says 1 or any affirmative → STEP 2. If user modifies → use their version, go to STEP 2. If cancel → discard.
+**WYSIWYG rule**: The query shown to the user in the confirmation **must be exactly** what you will submit to the tool. Never show one thing and submit another.
 
-**File upload:** Do NOT submit immediately. Recommend 3–5 analysis tasks (numbered, noting which files). User picks a number, types custom text, or cancels.
+**Text request (no files):** Show the user's original text as the query to submit. Present with options 1/2/0. If user says 1 or any affirmative → submit that exact text in STEP 2. If user modifies → use their modified version as the new query. If cancel → discard.
+
+**File upload:** Do NOT submit immediately. Recommend 3–5 analysis tasks (numbered, noting which files). Each option's text is the exact query that will be submitted. User picks a number, types custom text, or cancels.
 
 Text request example (adapt to language):
-> I'll use **ChartGen** to create this for you:
-> 📊 **Generate a monthly sales trend line chart for 2025.**
-> **1** — Go ahead  **2** — Modify  **0** — Cancel
+> I'll submit to **ChartGen**:
+> 📊 **"Generate a monthly sales trend line chart for 2025"**
+> **1** — Go ahead
+> **2** — Modify
+> **0** — Cancel
 
 File upload example (adapt to language):
-> I received your files! What would you like **ChartGen** to do?
-> **1.** 📊 Monthly order trend — *orders.xlsx*
-> **2.** 🥧 Category pie chart — *orders.xlsx, products.xlsx*
-> **3.** 📋 Full analysis report — *all files*
+> I received your files! Choose a task for **ChartGen** (the text shown will be submitted as-is):
+> **1.** 📊 "Monthly order trend chart" — *orders.xlsx*
+> **2.** 🥧 "Category breakdown pie chart" — *orders.xlsx, products.xlsx*
+> **3.** 📋 "Full analysis report with all files"
 > **0.** ❌ Cancel
 > Or type your own question.
 
