@@ -6,9 +6,8 @@ user-invocable: true
 homepage: https://github.com/chartgen-ai/chartgen-skill
 metadata:
   openclaw:
+    primaryEnv: CHARTGEN_API_KEY
     requires:
-      env:
-        - CHARTGEN_API_KEY
       runtime:
         - node >= 14
 ---
